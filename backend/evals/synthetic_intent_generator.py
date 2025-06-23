@@ -1,14 +1,15 @@
-import openai
 import pandas as pd
 import wandb
 from dotenv import load_dotenv
 from sqlalchemy import select
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from tqdm import tqdm
+import openai # Keep for retry_if_exception_type(openai.RateLimitError)
 
 from aci.cli import config
 from aci.common import utils
 from aci.common.db.sql_models import App, Function
+from aci.common.openai_clients import client_factory # Import the factory
 from evals.intent_prompts import PROMPTS
 
 load_dotenv()
@@ -46,8 +47,10 @@ class SyntheticIntentGenerator:
                 f"Invalid prompt type: {prompt_type}. Must be one of {list(PROMPTS.keys())}"
             )
 
-        # Initialize API clients
-        self.openai_client = openai.OpenAI(api_key=openai_api_key)
+        # Initialize API clients using the factory
+        # The factory will use OPENAI_CLIENT_TYPE, AZURE_OPENAI_ENDPOINT, OPENAI_BASE_URL etc. from env vars
+        # if they are set, while still using the provided api_key.
+        self.openai_client = client_factory.get_client(api_key=openai_api_key)
 
     def _fetch_app_function_data(self) -> pd.DataFrame:
         """
